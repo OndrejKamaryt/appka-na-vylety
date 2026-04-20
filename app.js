@@ -18,10 +18,35 @@
         zoomControl: true,
     });
 
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png", {
         attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> | © <a href="https://carto.com/attributions">CARTO</a>',
         subdomains: "abcd",
         maxZoom: 19,
+    }).addTo(map);
+
+    // ── Maska okolních států ───────────────────────────
+    // Zjednodušená hranice ČR [lat, lon] – Natural Earth 110m (~27 bodů)
+    const CZ_SHAPE = [
+        [49.496,18.853],[49.495,18.555],[49.990,18.400],[50.049,17.649],
+        [50.362,17.555],[50.474,16.869],[50.216,16.719],[50.423,16.176],
+        [50.698,16.239],[50.785,15.491],[51.107,15.017],[51.745,14.607],
+        [50.733,13.338],[50.576,12.682],[50.333,12.198],[49.969,12.415],
+        [49.547,12.521],[49.307,13.031],[48.877,13.596],[48.555,14.339],
+        [48.964,14.901],[49.039,15.253],[48.734,16.030],[48.786,16.499],
+        [48.856,17.445],[48.681,17.849],[49.255,18.160],
+    ];
+    const WORLD = [[85,-180],[85,180],[-85,180],[-85,-180]];
+
+    // Krémová maska přes vše mimo ČR
+    L.polygon([WORLD, CZ_SHAPE], {
+        color: "none", fillColor: "#f0ebe0", fillOpacity: 1,
+        interactive: false, smoothFactor: 2,
+    }).addTo(map);
+
+    // Jemný zelený okraj ČR
+    L.polygon(CZ_SHAPE, {
+        color: "#8cb89e", weight: 2.5, fill: false,
+        interactive: false, smoothFactor: 2,
     }).addTo(map);
 
     // Pojistka pro případ kdy kontejner nemá správné rozměry při inicializaci
