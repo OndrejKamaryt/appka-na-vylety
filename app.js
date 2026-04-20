@@ -5,9 +5,16 @@
     let markers        = {};
 
     // ── Map init ───────────────────────────────────────
+    // Hranice ČR – mapa nepůjde přetáhnout mimo
+    const CZ_BOUNDS = L.latLngBounds([48.4, 11.9], [51.2, 19.0]);
+
     const map = L.map("map", {
         center: [49.75, 15.5],
         zoom: 7,
+        minZoom: 7,
+        maxZoom: 16,
+        maxBounds: CZ_BOUNDS,
+        maxBoundsViscosity: 1.0,
         zoomControl: true,
     });
 
@@ -29,13 +36,14 @@
     const catBtns      = document.querySelectorAll(".cat-btn");
 
     // ── Marker factory ─────────────────────────────────
+    // Jednoduchý kruh bez rotace – Leaflet správně detekuje klik v celém iconSize boxu
     function makeIcon(trip, isActive = false) {
         return L.divIcon({
-            className: "",
-            html: `<div class="custom-marker ${isActive ? "active" : ""}"><span class="m-icon">${trip.icon}</span></div>`,
-            iconSize: [36, 36],
-            iconAnchor: [18, 36],
-            popupAnchor: [0, -36],
+            className: "map-marker-wrap",
+            html: `<div class="map-marker${isActive ? " active" : ""}"><span class="map-marker-icon">${trip.icon}</span></div>`,
+            iconSize: [42, 42],
+            iconAnchor: [21, 42],
+            popupAnchor: [0, -42],
         });
     }
 
