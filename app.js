@@ -1,10 +1,36 @@
+// ── Definice tras ─────────────────────────────────────
+const ROUTE_DEFS = [
+    { label: "Krátká",  color: "#4caf87", seeds: [7,  13, 29], nPts: 7  },
+    { label: "Střední", color: "#e9a824", seeds: [41, 17, 53], nPts: 9  },
+    { label: "Dlouhá",  color: "#e05c3a", seeds: [61, 37, 71], nPts: 11 },
+];
+
+// Generátor přibližných smyček v okolí bodu
+function mkWaypoints(lat, lon, radiusKm, nPts, seed) {
+    const R = 6371;
+    let s = (seed * 9301 + 49297) % 233280;
+    const rand = () => { s = (s * 9301 + 49297) % 233280; return s / 233280 - 0.5; };
+    const pts = [];
+    for (let i = 0; i < nPts; i++) {
+        const angle = (i / nPts) * 2 * Math.PI - Math.PI / 2;
+        const r = radiusKm * (1 + rand() * 0.38);
+        const dlat = (r / R) * (180 / Math.PI) * Math.cos(angle);
+        const dlon = (r / R) * (180 / Math.PI) * Math.sin(angle) / Math.cos(lat * Math.PI / 180);
+        pts.push([lat + dlat, lon + dlon]);
+    }
+    pts.push(pts[0]); // uzavřít smyčku
+    return pts;
+}
+
 (() => {
     // ── State ──────────────────────────────────────────
     let activeCategory = "vse";
     let activeTrip     = null;
+    let activeRouteIdx = 0;
     let markers        = {};
     let miniMap        = null;
     let miniMarker     = null;
+    let miniPolyline   = null;
 
     // ── Map init ───────────────────────────────────────
     const CZ_BOUNDS = L.latLngBounds([48.4, 11.9], [51.2, 19.0]);
@@ -156,9 +182,43 @@
         renderList();
     }
 
+    // ── Vykreslení trasy na mini-mapě ──────────────────
+    function renderRoute(trip, idx) {
+        if (!miniMap) return;
+        activeRouteIdx = idx;
+        const def = ROUTE_DEFS[idx];
+        const r   = trip.routeRadii[idx];
+        const wpts = mkWaypoints(trip.lat, trip.lon, r, def.nPts, def.seeds[idx]);
+
+        if (miniPolyline) { miniPolyline.remove(); miniPolyline = null; }
+        miniPolyline = L.polyline(wpts, {
+            color: def.color, weight: 4.5, opacity: 0.9,
+            lineJoin: "round", lineCap: "round",
+        }).addTo(miniMap);
+
+        miniMap.fitBounds(miniPolyline.getBounds(), { padding: [28, 28], maxZoom: 15 });
+
+        // Zvýraznění aktivní záložky
+        document.querySelectorAll(".route-btn").forEach((b, i) => {
+            b.classList.toggle("active", i === idx);
+        });
+    }
+
     // ── Detail panel ───────────────────────────────────
     function openDetail(trip) {
         const diff = DIFF_LABELS[trip.difficulty] || { cls: "", label: trip.difficulty };
+
+        // Route tabs HTML
+        const routeTabs = ROUTE_DEFS.map((def, i) => {
+            const r    = trip.routeRadii[i];
+            const dist = `~${Math.round(r * 6.3)} km`;
+            const dur  = i === 0 ? "~1 hod" : i === 1 ? "~2–3 hod" : "~4–6 hod";
+            return `<button class="route-btn${i === 0 ? " active" : ""}" data-route-idx="${i}" style="--rc:${def.color}">
+                <span class="route-dot"></span>
+                <strong>${def.label}</strong>
+                <span>${dist} · ${dur}</span>
+            </button>`;
+        }).join("");
 
         detailContent.innerHTML = `
             <div class="detail-header">
@@ -178,43 +238,50 @@
                 <div class="stat"><div class="stat-val">${trip.distance}</div><div class="stat-lbl">Vzdálenost</div></div>
                 <div class="stat"><div class="stat-val">${trip.elevation}</div><div class="stat-lbl">Převýšení</div></div>
             </div>
-            <div class="detail-map-label">Poloha na mapě</div>
+            <div class="detail-map-label">Trasy v okolí</div>
+            <div class="route-tabs">${routeTabs}</div>
         `;
 
-        // Tlačítko na Mapy.cz
         detailMapyCzBtn.href = trip.mapyCzUrl;
 
-        // Panel zobrazíme PRVNÍ – Leaflet nesmí inicializovat na skrytém elementu
+        // Panel zobrazíme PRVNÍ
         detailPanel.classList.remove("hidden");
+        activeRouteIdx = 0;
 
-        // Mini-mapu inicializujeme až po dokončení CSS přechodu (300 ms)
+        // Mini-mapu inicializujeme až po CSS přechodu
         setTimeout(() => {
             if (!miniMap) {
                 miniMap = L.map("detail-mini-map", {
-                    zoomControl: false,
-                    attributionControl: false,
-                    dragging: true,
-                    scrollWheelZoom: true,
+                    zoomControl: false, attributionControl: false,
+                    dragging: true, scrollWheelZoom: true,
                 });
                 L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
                     subdomains: "abcd", maxZoom: 19,
                 }).addTo(miniMap);
             }
             miniMap.invalidateSize();
-            miniMap.setView([trip.lat, trip.lon], 13);
-            if (miniMarker) miniMarker.remove();
+            if (miniMarker) { miniMarker.remove(); miniMarker = null; }
             miniMarker = L.marker([trip.lat, trip.lon], { icon: makeIcon(trip, true) }).addTo(miniMap);
+            renderRoute(trip, 0);
         }, 350);
     }
 
     function closeDetail() {
         detailPanel.classList.add("hidden");
+        if (miniPolyline) { miniPolyline.remove(); miniPolyline = null; }
         if (activeTrip) {
             markers[activeTrip.id]?.setIcon(makeIcon(activeTrip, false));
             activeTrip = null;
         }
         renderList();
     }
+
+    // ── Přepínání tras (event delegation) ──────────────
+    detailPanel.addEventListener("click", e => {
+        const btn = e.target.closest("[data-route-idx]");
+        if (!btn || !activeTrip) return;
+        renderRoute(activeTrip, parseInt(btn.dataset.routeIdx));
+    });
 
     document.getElementById("detail-close").addEventListener("click", closeDetail);
 

@@ -195,8 +195,22 @@ html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; backg
     color: var(--text-light);
     text-transform: uppercase;
     letter-spacing: .5px;
-    margin-bottom: 0;
+    margin-bottom: 8px;
 }
+
+/* ── Route tabs ── */
+.route-tabs { display: flex; gap: 6px; margin-bottom: 8px; }
+.route-btn {
+    flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    padding: 8px 4px; border: 2px solid #e0ddd8; border-radius: 10px;
+    background: var(--white); cursor: pointer; transition: all .15s;
+    font-family: inherit;
+}
+.route-btn:hover { border-color: var(--rc, #ccc); background: #fafaf8; }
+.route-btn.active { border-color: var(--rc, var(--green-light)); background: color-mix(in srgb, var(--rc, #52b788) 10%, white); }
+.route-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--rc, #ccc); flex-shrink: 0; }
+.route-btn strong { font-size: .78rem; color: var(--text); }
+.route-btn span:last-child { font-size: .68rem; color: var(--text-light); }
 
 #detail-map-wrap { flex: 1; display: flex; flex-direction: column; min-height: 0; }
 #detail-mini-map { flex: 1; min-height: 0; }
