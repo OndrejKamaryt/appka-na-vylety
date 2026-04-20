@@ -184,27 +184,27 @@
         // Tlačítko na Mapy.cz
         detailMapyCzBtn.href = trip.mapyCzUrl;
 
-        // Mini-mapa
-        if (!miniMap) {
-            miniMap = L.map("detail-mini-map", {
-                zoomControl: false,
-                attributionControl: false,
-                dragging: true,
-                scrollWheelZoom: true,
-            });
-            L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
-                subdomains: "abcd", maxZoom: 19,
-            }).addTo(miniMap);
-        }
-
-        miniMap.setView([trip.lat, trip.lon], 13);
-
-        if (miniMarker) miniMarker.remove();
-        miniMarker = L.marker([trip.lat, trip.lon], { icon: makeIcon(trip, true) }).addTo(miniMap);
-
+        // Panel zobrazíme PRVNÍ – Leaflet nesmí inicializovat na skrytém elementu
         detailPanel.classList.remove("hidden");
-        // Leaflet potřebuje vědět o změně velikosti kontejneru
-        setTimeout(() => miniMap.invalidateSize(), 320);
+
+        // Mini-mapu inicializujeme až po dokončení CSS přechodu (300 ms)
+        setTimeout(() => {
+            if (!miniMap) {
+                miniMap = L.map("detail-mini-map", {
+                    zoomControl: false,
+                    attributionControl: false,
+                    dragging: true,
+                    scrollWheelZoom: true,
+                });
+                L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+                    subdomains: "abcd", maxZoom: 19,
+                }).addTo(miniMap);
+            }
+            miniMap.invalidateSize();
+            miniMap.setView([trip.lat, trip.lon], 13);
+            if (miniMarker) miniMarker.remove();
+            miniMarker = L.marker([trip.lat, trip.lon], { icon: makeIcon(trip, true) }).addTo(miniMap);
+        }, 350);
     }
 
     function closeDetail() {
