@@ -9,9 +9,9 @@
     const CZ_BOUNDS = L.latLngBounds([48.4, 11.9], [51.2, 19.0]);
 
     const map = L.map("map", {
-        center: [49.75, 15.5],
-        zoom: 7,
-        minZoom: 7,
+        center: [49.8, 15.5],
+        zoom: 8,
+        minZoom: 8,
         maxZoom: 16,
         maxBounds: CZ_BOUNDS,
         maxBoundsViscosity: 1.0,
