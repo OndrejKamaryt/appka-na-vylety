@@ -255,6 +255,33 @@ html, body { height: 100%; font-family: 'Segoe UI', system-ui, sans-serif; backg
 }
 .map-marker-icon { font-size: 1.05rem; line-height: 1; }
 
+/* ── Route loading / empty states ── */
+.route-loading {
+    text-align: center;
+    color: var(--text-light);
+    font-size: .82rem;
+    padding: 18px 0;
+    animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: .4; }
+}
+.route-empty {
+    text-align: center;
+    color: var(--text-light);
+    font-size: .82rem;
+    padding: 18px 0;
+}
+.route-name-text {
+    font-size: .68rem;
+    color: var(--text-light);
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 /* ── RESPONSIVE ── */
 @media (max-width: 768px) {
     #sidebar { width: 260px; min-width: 260px; }
