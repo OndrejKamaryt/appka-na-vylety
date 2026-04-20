@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Výlety ČR</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div id="app">
+
+        <!-- SIDEBAR -->
+        <aside id="sidebar">
+            <div id="sidebar-header">
+                <h1>Výlety ČR</h1>
+                <input type="text" id="search" placeholder="Hledat výlet…" autocomplete="off">
+            </div>
+
+            <div id="categories">
+                <button class="cat-btn active" data-cat="vse">Vše</button>
+                <button class="cat-btn" data-cat="turistika">Turistika</button>
+                <button class="cat-btn" data-cat="jezero">Jezero</button>
+                <button class="cat-btn" data-cat="hrad">Hrad</button>
+                <button class="cat-btn" data-cat="priroda">Příroda</button>
+                <button class="cat-btn" data-cat="vyhlídka">Vyhlídka</button>
+            </div>
+
+            <div id="trip-list"></div>
+        </aside>
+
+        <!-- MAP -->
+        <main id="main">
+            <div id="map"></div>
+
+            <!-- DETAIL PANEL -->
+            <div id="detail-panel" class="hidden">
+                <button id="detail-close">&times;</button>
+                <div id="detail-content"></div>
+                <div id="detail-map-wrap">
+                    <iframe id="detail-iframe" src="" frameborder="0" allowfullscreen></iframe>
+                </div>
+            </div>
+        </main>
+
+    </div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>
