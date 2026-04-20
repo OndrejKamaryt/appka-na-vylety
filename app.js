@@ -3,9 +3,10 @@
     let activeCategory = "vse";
     let activeTrip     = null;
     let markers        = {};
+    let miniMap        = null;
+    let miniMarker     = null;
 
     // ── Map init ───────────────────────────────────────
-    // Hranice ČR – mapa nepůjde přetáhnout mimo
     const CZ_BOUNDS = L.latLngBounds([48.4, 11.9], [51.2, 19.0]);
 
     const map = L.map("map", {
@@ -24,9 +25,11 @@
         maxZoom: 19,
     }).addTo(map);
 
-    // ── Maska okolních států ───────────────────────────
-    // Zjednodušená hranice ČR [lat, lon] – Natural Earth 110m (~27 bodů)
-    const CZ_SHAPE = [
+    window.addEventListener("load", () => setTimeout(() => map.invalidateSize(), 150));
+
+    // ── Hranice ČR + maska okolních států ─────────────
+    // Záložní zjednodušený polygon (Natural Earth 110m)
+    const CZ_FALLBACK = [
         [49.496,18.853],[49.495,18.555],[49.990,18.400],[50.049,17.649],
         [50.362,17.555],[50.474,16.869],[50.216,16.719],[50.423,16.176],
         [50.698,16.239],[50.785,15.491],[51.107,15.017],[51.745,14.607],
@@ -37,31 +40,51 @@
     ];
     const WORLD = [[85,-180],[85,180],[-85,180],[-85,-180]];
 
-    // Krémová maska přes vše mimo ČR
-    L.polygon([WORLD, CZ_SHAPE], {
-        color: "none", fillColor: "#f0ebe0", fillOpacity: 1,
-        interactive: false, smoothFactor: 2,
-    }).addTo(map);
+    let maskLayer  = null;
+    let borderLayer = null;
 
-    // Jemný zelený okraj ČR
-    L.polygon(CZ_SHAPE, {
-        color: "#8cb89e", weight: 2.5, fill: false,
-        interactive: false, smoothFactor: 2,
-    }).addTo(map);
+    function applyMask(shape) {
+        if (maskLayer)  map.removeLayer(maskLayer);
+        if (borderLayer) map.removeLayer(borderLayer);
+        maskLayer = L.polygon([WORLD, shape], {
+            color: "none", fillColor: "#f0ebe0", fillOpacity: 1,
+            interactive: false, smoothFactor: 1,
+        }).addTo(map);
+        borderLayer = L.polygon(shape, {
+            color: "#8cb89e", weight: 2, fill: false,
+            interactive: false, smoothFactor: 1,
+        }).addTo(map);
+    }
 
-    // Pojistka pro případ kdy kontejner nemá správné rozměry při inicializaci
-    window.addEventListener("load", () => setTimeout(() => map.invalidateSize(), 150));
+    // Nejdřív zobrazí záložní polygon, pak nahradí přesným z OSM
+    applyMask(CZ_FALLBACK);
+
+    (async () => {
+        try {
+            const r = await fetch(
+                "https://nominatim.openstreetmap.org/search?country=cz&polygon_geojson=1&format=json&limit=1",
+                { headers: { "Accept-Language": "cs" } }
+            );
+            const d = await r.json();
+            const geo = d[0]?.geojson;
+            if (!geo) return;
+            const raw = geo.type === "MultiPolygon"
+                ? geo.coordinates.reduce((a, b) => a[0].length > b[0].length ? a : b)[0]
+                : geo.coordinates[0];
+            const shape = raw.map(([lon, lat]) => [lat, lon]);
+            applyMask(shape);
+        } catch(e) { /* zůstane záložní polygon */ }
+    })();
 
     // ── Elements ───────────────────────────────────────
-    const tripListEl   = document.getElementById("trip-list");
-    const detailPanel  = document.getElementById("detail-panel");
+    const tripListEl    = document.getElementById("trip-list");
+    const detailPanel   = document.getElementById("detail-panel");
     const detailContent = document.getElementById("detail-content");
-    const detailIframe = document.getElementById("detail-iframe");
-    const searchInput  = document.getElementById("search");
-    const catBtns      = document.querySelectorAll(".cat-btn");
+    const detailMapyCzBtn = document.getElementById("detail-mapycz-btn");
+    const searchInput   = document.getElementById("search");
+    const catBtns       = document.querySelectorAll(".cat-btn");
 
     // ── Marker factory ─────────────────────────────────
-    // Jednoduchý kruh bez rotace – Leaflet správně detekuje klik v celém iconSize boxu
     function makeIcon(trip, isActive = false) {
         return L.divIcon({
             className: "map-marker-wrap",
@@ -76,8 +99,7 @@
     TRIPS.forEach(trip => {
         const marker = L.marker([trip.lat, trip.lon], { icon: makeIcon(trip) })
             .addTo(map)
-            .bindTooltip(trip.name, { direction: "top", offset: [0, -34], className: "leaflet-tooltip" });
-
+            .bindTooltip(trip.name, { direction: "top", offset: [0, -34] });
         marker.on("click", () => selectTrip(trip));
         markers[trip.id] = marker;
     });
@@ -92,7 +114,6 @@
         });
 
         tripListEl.innerHTML = "";
-
         if (filtered.length === 0) {
             tripListEl.innerHTML = `<p class="no-results">Žádné výlety nenalezeny.</p>`;
             return;
@@ -102,7 +123,6 @@
             const diff = DIFF_LABELS[trip.difficulty] || { cls: "", label: trip.difficulty };
             const card = document.createElement("div");
             card.className = `trip-card${trip.id === activeTrip?.id ? " selected" : ""}`;
-            card.dataset.id = trip.id;
             card.innerHTML = `
                 <div class="trip-icon">${trip.icon}</div>
                 <div class="trip-info">
@@ -122,28 +142,16 @@
 
     // ── Select trip ────────────────────────────────────
     function selectTrip(trip) {
-        // Deactivate old marker
-        if (activeTrip) {
-            markers[activeTrip.id]?.setIcon(makeIcon(activeTrip, false));
-        }
-
-        // Same trip → close panel
+        if (activeTrip) markers[activeTrip.id]?.setIcon(makeIcon(activeTrip, false));
         if (activeTrip?.id === trip.id) {
             activeTrip = null;
             closeDetail();
             renderList();
             return;
         }
-
         activeTrip = trip;
-
-        // Activate new marker
         markers[trip.id]?.setIcon(makeIcon(trip, true));
-
-        // Fly to location
         map.flyTo([trip.lat, trip.lon], 13, { duration: 1.2 });
-
-        // Show detail panel
         openDetail(trip);
         renderList();
     }
@@ -166,29 +174,41 @@
             </div>
             <p class="detail-desc">${trip.description}</p>
             <div class="detail-stats">
-                <div class="stat">
-                    <div class="stat-val">${trip.duration}</div>
-                    <div class="stat-lbl">Délka</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-val">${trip.distance}</div>
-                    <div class="stat-lbl">Vzdálenost</div>
-                </div>
-                <div class="stat">
-                    <div class="stat-val">${trip.elevation}</div>
-                    <div class="stat-lbl">Převýšení</div>
-                </div>
+                <div class="stat"><div class="stat-val">${trip.duration}</div><div class="stat-lbl">Délka</div></div>
+                <div class="stat"><div class="stat-val">${trip.distance}</div><div class="stat-lbl">Vzdálenost</div></div>
+                <div class="stat"><div class="stat-val">${trip.elevation}</div><div class="stat-lbl">Převýšení</div></div>
             </div>
-            <div class="detail-map-label">Mapa trasy (Mapy.cz)</div>
+            <div class="detail-map-label">Poloha na mapě</div>
         `;
 
-        detailIframe.src = trip.mapyCzUrl;
+        // Tlačítko na Mapy.cz
+        detailMapyCzBtn.href = trip.mapyCzUrl;
+
+        // Mini-mapa
+        if (!miniMap) {
+            miniMap = L.map("detail-mini-map", {
+                zoomControl: false,
+                attributionControl: false,
+                dragging: true,
+                scrollWheelZoom: true,
+            });
+            L.tileLayer("https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png", {
+                subdomains: "abcd", maxZoom: 19,
+            }).addTo(miniMap);
+        }
+
+        miniMap.setView([trip.lat, trip.lon], 13);
+
+        if (miniMarker) miniMarker.remove();
+        miniMarker = L.marker([trip.lat, trip.lon], { icon: makeIcon(trip, true) }).addTo(miniMap);
+
         detailPanel.classList.remove("hidden");
+        // Leaflet potřebuje vědět o změně velikosti kontejneru
+        setTimeout(() => miniMap.invalidateSize(), 320);
     }
 
     function closeDetail() {
         detailPanel.classList.add("hidden");
-        detailIframe.src = "";
         if (activeTrip) {
             markers[activeTrip.id]?.setIcon(makeIcon(activeTrip, false));
             activeTrip = null;
@@ -204,8 +224,6 @@
             catBtns.forEach(b => b.classList.remove("active"));
             btn.classList.add("active");
             activeCategory = btn.dataset.cat;
-
-            // Show/hide markers
             TRIPS.forEach(t => {
                 const show = activeCategory === "vse" || t.category === activeCategory;
                 if (show) {
@@ -215,7 +233,6 @@
                     if (activeTrip?.id === t.id) closeDetail();
                 }
             });
-
             renderList();
         });
     });
